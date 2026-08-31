@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧多帳本記帳與雲端同步系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen pb-12">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-indigo-600 text-white shadow">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <h1 class="text-xl font-bold">💎 智慧多帳本雲端記帳系統</h1>
+                <span id="currentYearBadge" class="bg-indigo-800 text-xs px-2.5 py-1 rounded-full font-semibold">年度: 115年</span>
+                <span id="syncStatus" class="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded">已連線雲端</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-700 transition">總覽與帳本</button>
+                <button onclick="switchTab('transactions')" id="btn-transactions" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">記帳明細</button>
+                <button onclick="switchTab('advanced')" id="btn-advanced" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">信用卡代墊 & 分析</button>
+                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1">📊 匯出 Excel</button>
+                <button onclick="archiveYear()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition">📁 年度歸檔</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 mt-6">
+
+        <!-- ================= 頁籤 1：總覽與帳本 ================= -->
+        <section id="tab-dashboard" class="space-y-6">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800 mb-3">🏦 各帳本即時餘額</h2>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-white p-4 rounded-xl shadow border border-indigo-50">
+                        <p class="text-xs text-gray-500">元大帳本</p>
+                        <p id="balance-yuanta" class="text-xl font-bold text-indigo-600">$0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow border border-emerald-50">
+                        <p class="text-xs text-gray-500">郵局帳本</p>
+                        <p id="balance-post" class="text-xl font-bold text-emerald-600">$0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow border border-amber-50">
+                        <p class="text-xs text-gray-500">現金帳本</p>
+                        <p id="balance-cash" class="text-xl font-bold text-amber-600">$0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">✍️ 新增收支 / 代收代付紀錄</h2>
+                <form id="txForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">日期</label>
+                        <input type="date" id="txDate" required class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">選擇帳本</label>
+                        <select id="txAccount" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                            <option value="元大">元大</option>
+                            <option value="郵局">郵局</option>
+                            <option value="現金">現金</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">收支類型</label>
+                        <select id="txType" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                            <option value="一般收入">一般收入 (+)</option>
+                            <option value="一般支出">一般支出 (-)</option>
+                            <option value="代收">代收 (不計入收支總覽，餘額增加)</option>
+                            <option value="代付">代付 (不計入收支總覽，餘額減少)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">金額</label>
+                        <input type="number" id="txAmount" required placeholder="請輸入金額" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">項目</label>
+                        <input type="text" id="txItem" required placeholder="例如：午餐、薪水" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">備註</label>
+                        <input type="text" id="txNote" placeholder="例如：同事聚餐、額外獎金" class="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-medium py-2 px-4 rounded-md hover:bg-indigo-700 transition">確認新增紀錄</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= 頁籤 2：記帳明細 ================= -->
+        <section id="tab-transactions" class="hidden space-y-4">
+            <div class="bg-white p-6 rounded-xl shadow">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+                    <h2 class="text-lg font-bold text-gray-800">📋 所有記帳明細</h2>
+                    <div class="flex items-center gap-2">
+                        <select id="filterTxMonth" onchange="renderTransactions()" class="text-sm border rounded-md p-1.5">
+                            <option value="all">所有月份</option>
+                            <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+                            <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+                            <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+                            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                        </select>
+                        <select id="filterAccount" onchange="renderTransactions()" class="text-sm border rounded-md p-1.5">
+                            <option value="all">所有帳本</option>
+                            <option value="元大">元大</option>
+                            <option value="郵局">郵局</option>
+                            <option value="現金">現金</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-500 text-left">
+                                <th class="p-3">日期</th>
+                                <th class="p-3">帳本</th>
+                                <th class="p-3">項目</th>
+                                <th class="p-3">備註</th>
+                                <th class="p-3">類型</th>
+                                <th class="p-3 text-right">金額</th>
+                                <th class="p-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="txTableBody" class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 頁籤 3：信用卡代墊 & 分析 ================= -->
+        <section id="tab-advanced" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow border-t-4 border-indigo-500">
+                <h2 class="text-lg font-bold text-gray-800 mb-1">💳 信用卡每月繳費狀態追蹤</h2>
+                <p class="text-xs text-gray-500 mb-4">勾選代表該月份的三張信用卡帳單已完成繳費</p>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm text-center">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-500">
+                                <th class="p-2 text-left">月份</th>
+                                <th class="p-2">玉山銀行</th>
+                                <th class="p-2">中國信託</th>
+                                <th class="p-2">星展銀行</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentStatusTableBody" class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow border-t-4 border-purple-500">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">📌 信用卡代墊管理</h2>
+                        <p class="text-xs text-gray-500">不計入收支總覽，支援依月份歸檔</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select id="filterAdvMonth" onchange="renderAdvances()" class="text-sm border rounded-md p-1.5">
+                            <option value="all">所有月份</option>
+                            <option value="1月">1月</option><option value="2月">2月</option><option value="3月">3月</option>
+                            <option value="4月">4月</option><option value="5月">5月</option><option value="6月">6月</option>
+                            <option value="7月">7月</option><option value="8月">8月</option><option value="9月">9月</option>
+                            <option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option>
+                        </select>
+                        <div class="text-right">
+                            <span class="text-xs text-gray-500">篩選總代墊：</span>
+                            <span id="advanceTotal" class="text-lg font-bold text-purple-600">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="advanceForm" class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+                    <input type="date" id="advDate" required class="rounded-md border border-gray-300 p-2 text-sm">
+                    <select id="advMonth" required class="rounded-md border border-gray-300 p-2 text-sm">
+                        <option value="1月">1月歸檔</option><option value="2月">2月歸檔</option><option value="3月">3月歸檔</option>
+                        <option value="4月">4月歸檔</option><option value="5月">5月歸檔</option><option value="6月">6月歸檔</option>
+                        <option value="7月">7月歸檔</option><option value="8月">8月歸檔</option><option value="9月">9月歸檔</option>
+                        <option value="10月">10月歸檔</option><option value="11月">11月歸檔</option><option value="12月">12月歸檔</option>
+                    </select>
+                    <select id="advCard" required class="rounded-md border border-gray-300 p-2 text-sm">
+                        <option value="玉山">玉山</option>
+                        <option value="中信">中信</option>
+                        <option value="星展">星展</option>
+                    </select>
+                    <input type="text" id="advItem" placeholder="項目名稱" required class="rounded-md border border-gray-300 p-2 text-sm">
+                    <input type="number" id="advAmount" placeholder="代墊金額" required class="rounded-md border border-gray-300 p-2 text-sm">
+                    <div class="md:col-span-5">
+                        <button type="submit" class="w-full bg-purple-600 text-white text-sm font-medium py-2 rounded-md hover:bg-purple-700 transition">新增代墊紀錄</button>
+                    </div>
+                </form>
+
+                <div class="max-h-48 overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr>
+                                <th class="p-2 text-left">日期</th>
+                                <th class="p-2 text-left">歸屬月份</th>
+                                <th class="p-2 text-left">卡別</th>
+                                <th class="p-2 text-left">項目</th>
+                                <th class="p-2 text-right">金額</th>
+                                <th class="p-2 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="advanceTableBody" class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow space-y-6">
+                <h2 class="text-lg font-bold text-gray-800">📊 月度與年度財務指標分析</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div class="bg-gray-50 p-3 rounded-lg border">
+                        <p class="text-xs text-gray-500">月均支出</p>
+                        <p id="avgExpense" class="text-base font-bold text-red-600">$0</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border">
+                        <p class="text-xs text-gray-500">月均實存</p>
+                        <p id="avgSaving" class="text-base font-bold text-blue-600">$0</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border">
+                        <p class="text-xs text-gray-500">年支出率</p>
+                        <p id="annualExpenseRate" class="text-base font-bold text-gray-800">0%</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border">
+                        <p class="text-xs text-gray-500">年實存率</p>
+                        <p id="annualSavingRate" class="text-base font-bold text-gray-800">0%</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-bold text-gray-700 mb-2">每月收支與實存一覽</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 text-left">
+                                    <th class="p-3">月份</th>
+                                    <th class="p-3 text-right">總收入</th>
+                                    <th class="p-3 text-right">總支出</th>
+                                    <th class="p-3 text-right">實存 (結餘)</th>
+                                    <th class="p-3 text-right">實存率</th>
+                                    <th class="p-3 text-right">支出率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthlyTableBody" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- JavaScript 雲端同步核心邏輯 -->
+    <script>
+        // ⚠️ 請把下方引號中的網址換成你剛剛部署好的 Google Apps Script 網頁應用程式網址 ⚠️
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz8aipuLd3dOy-UjrhTlBH9PxObGr0sgN-E0RZRzQKkf5Cbh4rsQ_XRO_YAUdGomJI-rw/exec';
+
+        let currentYear = localStorage.getItem('smart_current_year') || '115年';
+        let transactions = [];
+        let advances = [];
+        let paymentStatus = {};
+
+        document.getElementById('currentYearBadge').innerText = `年度: ${currentYear}`;
+        document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('advDate').value = new Date().toISOString().split('T')[0];
+
+        document.getElementById('advDate').addEventListener('change', function() {
+            let m = parseInt(this.value.substring(5, 7));
+            document.getElementById('advMonth').value = m + '月';
+        });
+
+        function switchTab(tabName) {
+            ['dashboard', 'transactions', 'advanced'].forEach(t => {
+                document.getElementById('tab-' + t).classList.add('hidden');
+                document.getElementById('btn-' + t).className = 'px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition';
+            });
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            document.getElementById('btn-' + tabName).className = 'px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-700 transition';
+        }
+
+        // 從雲端載入資料
+        async function loadFromCloud() {
+            if (API_URL.includes('你的GAS網址')) {
+                alert('請先將程式碼中的 API_URL 換成你的 Google Apps Script 部署網址！');
+                return;
+            }
+            document.getElementById('syncStatus').innerText = '同步中...';
+            document.getElementById('syncStatus').className = 'text-xs bg-amber-500 text-white px-2 py-0.5 rounded';
+            try {
+                let res = await fetch(`${API_URL}?action=getData&year=${currentYear}`);
+                let data = await res.json();
+                transactions = data.transactions || [];
+                advances = data.advances || [];
+                paymentStatus = data.paymentStatus || {};
+                
+                document.getElementById('syncStatus').innerText = '已連線雲端';
+                document.getElementById('syncStatus').className = 'text-xs bg-emerald-500 text-white px-2 py-0.5 rounded';
+                initAll();
+            } catch(e) {
+                console.error(e);
+                document.getElementById('syncStatus').innerText = '連線失敗';
+                document.getElementById('syncStatus').className = 'text-xs bg-red-500 text-white px-2 py-0.5 rounded';
+            }
+        }
+
+        // 儲存資料到雲端
+        async function saveToCloud() {
+            document.getElementById('syncStatus').innerText = '儲存中...';
+            document.getElementById('syncStatus').className = 'text-xs bg-amber-500 text-white px-2 py-0.5 rounded';
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        year: currentYear,
+                        transactions: transactions,
+                        advances: advances,
+                        paymentStatus: paymentStatus
+                    })
+                });
+                document.getElementById('syncStatus').innerText = '已連線雲端';
+                document.getElementById('syncStatus').className = 'text-xs bg-emerald-500 text-white px-2 py-0.5 rounded';
+            } catch(e) {
+                console.error(e);
+                document.getElementById('syncStatus').innerText = '儲存失敗';
+                document.getElementById('syncStatus').className = 'text-xs bg-red-500 text-white px-2 py-0.5 rounded';
+            }
+        }
+
+        document.getElementById('txForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            transactions.push({
+                id: Date.now().toString(),
+                date: document.getElementById('txDate').value,
+                account: document.getElementById('txAccount').value,
+                type: document.getElementById('txType').value,
+                amount: parseFloat(document.getElementById('txAmount').value),
+                item: document.getElementById('txItem').value,
+                note: document.getElementById('txNote').value
+            });
+            saveAndSync();
+            this.reset();
+            document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+        });
+
+        document.getElementById('advanceForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            advances.push({
+                id: Date.now().toString(),
+                date: document.getElementById('advDate').value,
+                month: document.getElementById('advMonth').value,
+                card: document.getElementById('advCard').value,
+                item: document.getElementById('advItem').value,
+                amount: parseFloat(document.getElementById('advAmount').value)
+            });
+            saveAndSync();
+            this.reset();
+            document.getElementById('advDate').value = new Date().toISOString().split('T')[0];
+        });
+
+        function deleteTransaction(id) {
+            transactions = transactions.filter(t => t.id !== id);
+            saveAndSync();
+        }
+
+        function deleteAdvance(id) {
+            advances = advances.filter(a => a.id !== id);
+            saveAndSync();
+        }
+
+        function togglePayment(month, card) {
+            if (!paymentStatus[month]) paymentStatus[month] = {};
+            paymentStatus[month][card] = !paymentStatus[month][card];
+            saveAndSync();
+        }
+
+        function saveAndSync() {
+            saveToCloud();
+            initAll();
+        }
+
+        function initAll() {
+            renderBalances();
+            renderTransactions();
+            renderAdvances();
+            renderPaymentStatus();
+            renderAnalytics();
+        }
+
+        function renderBalances() {
+            let balances = { "元大": 0, "郵局": 0, "現金": 0 };
+            transactions.forEach(t => {
+                if (balances[t.account] !== undefined) {
+                    if (t.type === '一般收入' || t.type === '代收') balances[t.account] += Number(t.amount);
+                    else if (t.type === '一般支出' || t.type === '代付') balances[t.account] -= Number(t.amount);
+                }
+            });
+            document.getElementById('balance-yuanta').innerText = `$${balances["元大"].toLocaleString()}`;
+            document.getElementById('balance-post').innerText = `$${balances["郵局"].toLocaleString()}`;
+            document.getElementById('balance-cash').innerText = `$${balances["現金"].toLocaleString()}`;
+        }
+
+        function renderTransactions() {
+            const filterMonth = document.getElementById('filterTxMonth').value;
+            const filterAcc = document.getElementById('filterAccount').value;
+            const tbody = document.getElementById('txTableBody');
+            tbody.innerHTML = '';
+
+            let filtered = transactions.filter(t => {
+                let matchAcc = (filterAcc === 'all' || t.account === filterAcc);
+                let tMonth = t.date ? t.date.substring(5, 7) : '';
+                let matchMonth = (filterMonth === 'all' || tMonth === filterMonth);
+                return matchAcc && matchMonth;
+            });
+
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            filtered.forEach(t => {
+                let badgeClass = 'bg-gray-100 text-gray-800';
+                let sign = '';
+                if (t.type === '一般收入') { badgeClass = 'bg-green-100 text-green-800'; sign = '+'; }
+                else if (t.type === '一般支出') { badgeClass = 'bg-red-100 text-red-800'; sign = '-'; }
+                else if (t.type === '代收') { badgeClass = 'bg-blue-100 text-blue-800'; sign = '+'; }
+                else if (t.type === '代付') { badgeClass = 'bg-amber-100 text-amber-800'; sign = '-'; }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 text-gray-600">${t.date}</td>
+                    <td class="p-3 font-medium text-gray-800">${t.account}</td>
+                    <td class="p-3 font-medium text-gray-800">${t.item}</td>
+                    <td class="p-3 text-gray-500">${t.note || '-'}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ${badgeClass}">${t.type}</span></td>
+                    <td class="p-3 text-right font-semibold ${sign === '+' ? 'text-green-600' : 'text-red-600'}">${sign}$${Number(t.amount).toLocaleString()}</td>
+                    <td class="p-3 text-center"><button onclick="deleteTransaction('${t.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderPaymentStatus() {
+            const tbody = document.getElementById('paymentStatusTableBody');
+            tbody.innerHTML = '';
+            const cards = ['玉山', '中信', '星展'];
+
+            for (let i = 1; i <= 12; i++) {
+                let monthStr = `${i}月`;
+                const tr = document.createElement('tr');
+                let rowHTML = `<td class="p-2 text-left font-medium text-gray-800">${monthStr}</td>`;
+                
+                cards.forEach(card => {
+                    let checked = (paymentStatus[monthStr] && paymentStatus[monthStr][card]) ? 'checked' : '';
+                    rowHTML += `
+                        <td class="p-2">
+                            <input type="checkbox" ${checked} onclick="togglePayment('${monthStr}', '${card}')" class="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer">
+                        </td>
+                    `;
+                });
+                tr.innerHTML = rowHTML;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function renderAdvances() {
+            const filterMonth = document.getElementById('filterAdvMonth').value;
+            const tbody = document.getElementById('advanceTableBody');
+            tbody.innerHTML = '';
+            let total = 0;
+            let filtered = filterMonth === 'all' ? advances : advances.filter(a => a.month === filterMonth);
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            filtered.forEach(a => {
+                total += Number(a.amount);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-2 text-gray-600">${a.date}</td>
+                    <td class="p-2 font-medium text-indigo-600">${a.month}</td>
+                    <td class="p-2 font-medium text-purple-700">${a.card}</td>
+                    <td class="p-2 text-gray-800">${a.item}</td>
+                    <td class="p-2 text-right font-semibold text-purple-600">$${Number(a.amount).toLocaleString()}</td>
+                    <td class="p-2 text-center"><button onclick="deleteAdvance('${a.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('advanceTotal').innerText = `$${total.toLocaleString()}`;
+        }
+
+        function renderAnalytics() {
+            let monthlyData = {};
+            transactions.forEach(t => {
+                if (t.type === '一般收入' || t.type === '一般支出') {
+                    let monthKey = t.date ? t.date.substring(0, 7) : '';
+                    if (monthKey) {
+                        if (!monthlyData[monthKey]) monthlyData[monthKey] = { income: 0, expense: 0 };
+                        if (t.type === '一般收入') monthlyData[monthKey].income += Number(t.amount);
+                        else monthlyData[monthKey].expense += Number(t.amount);
+                    }
+                }
+            });
+
+            let months = Object.keys(monthlyData).sort();
+            let totalIncAll = 0, totalExpAll = 0, totalSavAll = 0, monthCount = months.length;
+            const monthlyTbody = document.getElementById('monthlyTableBody');
+            monthlyTbody.innerHTML = '';
+
+            months.forEach(m => {
+                let inc = monthlyData[m].income;
+                let exp = monthlyData[m].expense;
+                let saving = inc - exp;
+                totalIncAll += inc; totalExpAll += exp; totalSavAll += saving;
+
+                let savingRate = inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%';
+                let expenseRate = inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-800">${m}</td>
+                    <td class="p-3 text-right text-green-600 font-semibold">$${inc.toLocaleString()}</td>
+                    <td class="p-3 text-right text-red-600 font-semibold">$${exp.toLocaleString()}</td>
+                    <td class="p-3 text-right text-blue-600 font-semibold">$${saving.toLocaleString()}</td>
+                    <td class="p-3 text-right text-gray-700">${savingRate}</td>
+                    <td class="p-3 text-right text-gray-700">${expenseRate}</td>
+                `;
+                monthlyTbody.appendChild(tr);
+            });
+
+            document.getElementById('avgExpense').innerText = `$${monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0}`;
+            document.getElementById('avgSaving').innerText = `$${monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0}`;
+            document.getElementById('annualExpenseRate').innerText = totalIncAll > 0 ? ((totalExpAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
+            document.getElementById('annualSavingRate').innerText = totalIncAll > 0 ? ((totalSavAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+
+            const txDataForExcel = transactions.map(t => ({
+                日期: t.date,
+                帳本: t.account,
+                項目: t.item,
+                備註: t.note || '',
+                收支類型: t.type,
+                金額: Number(t.amount)
+            }));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txDataForExcel), "記帳明細");
+
+            const advDataForExcel = advances.map(a => ({
+                日期: a.date,
+                歸屬月份: a.month,
+                卡別: a.card,
+                項目: a.item,
+                金額: Number(a.amount)
+            }));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(advDataForExcel), "信用卡代墊");
+
+            let monthlyData = {};
+            transactions.forEach(t => {
+                if (t.type === '一般收入' || t.type === '一般支出') {
+                    let mKey = t.date ? t.date.substring(0, 7) : '';
+                    if (mKey) {
+                        if (!monthlyData[mKey]) monthlyData[mKey] = { income: 0, expense: 0 };
+                        if (t.type === '一般收入') monthlyData[mKey].income += Number(t.amount);
+                        else monthlyData[mKey].expense += Number(t.amount);
+                    }
+                }
+            });
+
+            let months = Object.keys(monthlyData).sort();
+            let totInc = 0, totExp = 0, totSav = 0;
+            let monthlyExcelRows = [];
+
+            months.forEach(m => {
+                let inc = monthlyData[m].income;
+                let exp = monthlyData[m].expense;
+                let saving = inc - exp;
+                totInc += inc; totExp += exp; totSav += saving;
+
+                monthlyExcelRows.push({
+                    月份: m,
+                    總收入: inc,
+                    總支出: exp,
+                    實存結餘: saving,
+                    實存率: inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%',
+                    支出率: inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%'
+                });
+            });
+
+            let mCount = months.length;
+            let summaryRows = [
+                { 月份: "【年度摘要指標】", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "月均支出", 總收入: mCount > 0 ? Math.round(totExp / mCount) : 0, 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "月均實存", 總收入: mCount > 0 ? Math.round(totSav / mCount) : 0, 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "年支出率", 總收入: totInc > 0 ? ((totExp / totInc) * 100).toFixed(1) + '%' : '0.0%', 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "年實存率", 總收入: totInc > 0 ? ((totSav / totInc) * 100).toFixed(1) + '%' : '0.0%', 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "--------------------", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
+                { 月份: "【每月收支明細】", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" }
+            ];
+
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...summaryRows, ...monthlyExcelRows]), "收支總覽");
+            XLSX.writeFile(wb, `智慧記帳本_${currentYear}.xlsx`);
+        }
+
+        function archiveYear() {
+            let nextYearNum = parseInt(currentYear) + 1;
+            let nextYearStr = nextYearNum + '年';
+            if (confirm(`確定要將 ${currentYear} 進行歸檔，並開立新年度【${nextYearStr}】的記帳本嗎？`)) {
+                currentYear = nextYearStr;
+                localStorage.setItem('smart_current_year', currentYear);
+                transactions = [];
+                advances = [];
+                paymentStatus = {};
+                document.getElementById('currentYearBadge').innerText = `年度: ${currentYear}`;
+                saveAndSync();
+                alert(`已成功切換至 ${currentYear}！`);
+            }
+        }
+
+        // 頁面載入時自動向雲端抓取資料
+        loadFromCloud();
+    </script>
+</body>
+</html>
