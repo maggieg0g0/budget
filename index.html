@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body class="bg-gray-50 min-h-screen pb-12">
@@ -283,6 +283,15 @@
             document.getElementById('btn-' + tabName).className = 'px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-700 transition';
         }
 
+        // 輔助函數：依照 id 過濾重複項目
+        function removeDuplicates(arr) {
+            let map = new Map();
+            (arr || []).forEach(item => {
+                if (item && item.id) map.set(String(item.id), item);
+            });
+            return Array.from(map.values());
+        }
+
         // 從雲端載入資料
         async function loadFromCloud() {
             if (API_URL.includes('你的GAS網址')) {
@@ -294,8 +303,10 @@
             try {
                 let res = await fetch(`${API_URL}?action=getData&year=${currentYear}`);
                 let data = await res.json();
-                transactions = data.transactions || [];
-                advances = data.advances || [];
+                
+                // 套用去重機制，避免雲端或快取帶入重複項
+                transactions = removeDuplicates(data.transactions || []);
+                advances = removeDuplicates(data.advances || []);
                 paymentStatus = data.paymentStatus || {};
                 
                 document.getElementById('syncStatus').innerText = '已連線雲端';
@@ -331,17 +342,20 @@
             }
         }
 
-        // 記帳表單送出防呆與事件綁定
+        // 記帳表單送出防呆與事件綁定（加入防止連點與唯一 ID 產生機制）
+        let isSubmitting = false;
         document.getElementById('txForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            if (isSubmitting) return;
             
             let itemVal = document.getElementById('txItem').value.trim();
             let amountVal = document.getElementById('txAmount').value;
             
             if (!itemVal || !amountVal) return;
 
+            isSubmitting = true;
             transactions.push({
-                id: Date.now().toString(),
+                id: Date.now().toString() + "_" + Math.floor(Math.random() * 1000),
                 date: document.getElementById('txDate').value,
                 account: document.getElementById('txAccount').value,
                 type: document.getElementById('txType').value,
@@ -352,17 +366,22 @@
             saveAndSync();
             this.reset();
             document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+            
+            setTimeout(() => { isSubmitting = false; }, 500);
         });
 
+        let isAdvSubmitting = false;
         document.getElementById('advanceForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            if (isAdvSubmitting) return;
             
             let itemVal = document.getElementById('advItem').value.trim();
             let amountVal = document.getElementById('advAmount').value;
             if (!itemVal || !amountVal) return;
 
+            isAdvSubmitting = true;
             advances.push({
-                id: Date.now().toString(),
+                id: Date.now().toString() + "_" + Math.floor(Math.random() * 1000),
                 date: document.getElementById('advDate').value,
                 month: document.getElementById('advMonth').value,
                 card: document.getElementById('advCard').value,
@@ -372,6 +391,8 @@
             saveAndSync();
             this.reset();
             document.getElementById('advDate').value = new Date().toISOString().split('T')[0];
+            
+            setTimeout(() => { isAdvSubmitting = false; }, 500);
         });
 
         function deleteTransaction(id) {
