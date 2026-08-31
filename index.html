@@ -258,7 +258,6 @@
 
     <!-- JavaScript 雲端同步核心邏輯 -->
     <script>
-        // ⚠️ 請把下方引號中的網址換成你剛剛部署好的 Google Apps Script 網頁應用程式網址 ⚠️
         const API_URL = 'https://script.google.com/macros/s/AKfycbz8aipuLd3dOy-UjrhTlBH9PxObGr0sgN-E0RZRzQKkf5Cbh4rsQ_XRO_YAUdGomJI-rw/exec';
 
         let currentYear = localStorage.getItem('smart_current_year') || '115年';
@@ -568,72 +567,26 @@
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(advDataForExcel), "信用卡代墊");
 
-            let monthlyData = {};
-            transactions.forEach(t => {
-                if (t.type === '一般收入' || t.type === '一般支出') {
-                    let mKey = t.date ? t.date.substring(0, 7) : '';
-                    if (mKey) {
-                        if (!monthlyData[mKey]) monthlyData[mKey] = { income: 0, expense: 0 };
-                        if (t.type === '一般收入') monthlyData[mKey].income += Number(t.amount);
-                        else monthlyData[mKey].expense += Number(t.amount);
-                    }
-                }
-            });
-
-            let months = Object.keys(monthlyData).sort();
-            let totInc = 0, totExp = 0, totSav = 0;
-            let monthlyExcelRows = [];
-
-            months.forEach(m => {
-                let inc = monthlyData[m].income;
-                let exp = monthlyData[m].expense;
-                let saving = inc - exp;
-                totInc += inc; totExp += exp; totSav += saving;
-
-                monthlyExcelRows.push({
-                    月份: m,
-                    總收入: inc,
-                    總支出: exp,
-                    實存結餘: saving,
-                    實存率: inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%',
-                    支出率: inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%'
-                });
-            });
-
-            let mCount = months.length;
-            let summaryRows = [
-                { 月份: "【年度摘要指標】", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "月均支出", 總收入: mCount > 0 ? Math.round(totExp / mCount) : 0, 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "月均實存", 總收入: mCount > 0 ? Math.round(totSav / mCount) : 0, 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "年支出率", 總收入: totInc > 0 ? ((totExp / totInc) * 100).toFixed(1) + '%' : '0.0%', 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "年實存率", 總收入: totInc > 0 ? ((totSav / totInc) * 100).toFixed(1) + '%' : '0.0%', 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "--------------------", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" },
-                { 月份: "【每月收支明細】", 總收入: "", 總支出: "", 實存結餘: "", 實存率: "", 支出率: "" }
-            ];
-
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...summaryRows, ...monthlyExcelRows]), "收支總覽");
-            XLSX.writeFile(wb, `智慧記帳本_${currentYear}.xlsx`);
+            XLSX.writeFile(wb, `智慧多帳本記帳-${currentYear}.xlsx`);
         }
 
         function archiveYear() {
-            let nextYearNum = parseInt(currentYear) + 1;
-            let nextYearStr = nextYearNum + '年';
-            if (confirm(`確定要將 ${currentYear} 進行歸檔，並開立新年度【${nextYearStr}】的記帳本嗎？`)) {
-                currentYear = nextYearStr;
+            let newYear = prompt('請輸入要建立或切換的新年度（例如：116年）：', '116年');
+            if (newYear) {
+                currentYear = newYear.trim();
                 localStorage.setItem('smart_current_year', currentYear);
+                document.getElementById('currentYearBadge').innerText = `年度: ${currentYear}`;
                 transactions = [];
                 advances = [];
                 paymentStatus = {};
-                document.getElementById('currentYearBadge').innerText = `年度: ${currentYear}`;
-                saveAndSync();
-                alert(`已成功切換至 ${currentYear}！`);
+                loadFromCloud();
             }
         }
 
-        // 使用 DOMContentLoaded 確保網頁完全載入後才發送請求
-        window.addEventListener('DOMContentLoaded', () => {
+        // 頁面載入時抓取資料
+        window.onload = function() {
             loadFromCloud();
-        });
+        };
     </script>
 </body>
 </html>
