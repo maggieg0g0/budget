@@ -21,11 +21,11 @@
                 <span id="syncStatus" class="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded">已連線雲端</span>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-700 transition">總覽與帳本</button>
-                <button onclick="switchTab('transactions')" id="btn-transactions" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">記帳明細</button>
-                <button onclick="switchTab('advanced')" id="btn-advanced" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">信用卡代墊 & 分析</button>
-                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1">📊 匯出 Excel</button>
-                <button onclick="archiveYear()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition">📁 年度歸檔</button>
+                <button type="button" onclick="switchTab('dashboard')" id="btn-dashboard" class="px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-700 transition">總覽與帳本</button>
+                <button type="button" onclick="switchTab('transactions')" id="btn-transactions" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">記帳明細</button>
+                <button type="button" onclick="switchTab('advanced')" id="btn-advanced" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-indigo-700 transition">信用卡代墊 & 分析</button>
+                <button type="button" onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1">📊 匯出 Excel</button>
+                <button type="button" onclick="archiveYear()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition">📁 年度歸檔</button>
             </div>
         </div>
     </header>
@@ -332,15 +332,22 @@
             }
         }
 
+        // 記帳表單送出防呆與事件綁定
         document.getElementById('txForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            let itemVal = document.getElementById('txItem').value.trim();
+            let amountVal = document.getElementById('txAmount').value;
+            
+            if (!itemVal || !amountVal) return;
+
             transactions.push({
                 id: Date.now().toString(),
                 date: document.getElementById('txDate').value,
                 account: document.getElementById('txAccount').value,
                 type: document.getElementById('txType').value,
-                amount: parseFloat(document.getElementById('txAmount').value),
-                item: document.getElementById('txItem').value,
+                amount: parseFloat(amountVal),
+                item: itemVal,
                 note: document.getElementById('txNote').value
             });
             saveAndSync();
@@ -350,13 +357,18 @@
 
         document.getElementById('advanceForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            let itemVal = document.getElementById('advItem').value.trim();
+            let amountVal = document.getElementById('advAmount').value;
+            if (!itemVal || !amountVal) return;
+
             advances.push({
                 id: Date.now().toString(),
                 date: document.getElementById('advDate').value,
                 month: document.getElementById('advMonth').value,
                 card: document.getElementById('advCard').value,
-                item: document.getElementById('advItem').value,
-                amount: parseFloat(document.getElementById('advAmount').value)
+                item: itemVal,
+                amount: parseFloat(amountVal)
             });
             saveAndSync();
             this.reset();
@@ -436,7 +448,7 @@
                     <td class="p-3 text-gray-500">${t.note || '-'}</td>
                     <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ${badgeClass}">${t.type}</span></td>
                     <td class="p-3 text-right font-semibold ${sign === '+' ? 'text-green-600' : 'text-red-600'}">${sign}$${Number(t.amount).toLocaleString()}</td>
-                    <td class="p-3 text-center"><button onclick="deleteTransaction('${t.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
+                    <td class="p-3 text-center"><button type="button" onclick="deleteTransaction('${t.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -482,7 +494,7 @@
                     <td class="p-2 font-medium text-purple-700">${a.card}</td>
                     <td class="p-2 text-gray-800">${a.item}</td>
                     <td class="p-2 text-right font-semibold text-purple-600">$${Number(a.amount).toLocaleString()}</td>
-                    <td class="p-2 text-center"><button onclick="deleteAdvance('${a.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
+                    <td class="p-2 text-center"><button type="button" onclick="deleteAdvance('${a.id}')" class="text-red-400 hover:text-red-600 font-bold">&times;</button></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -618,8 +630,10 @@
             }
         }
 
-        // 頁面載入時自動向雲端抓取資料
-        loadFromCloud();
+        // 使用 DOMContentLoaded 確保網頁完全載入後才發送請求
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromCloud();
+        });
     </script>
 </body>
 </html>
