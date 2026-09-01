@@ -568,30 +568,30 @@
         function exportToExcel() {
             const wb = XLSX.utils.book_new();
 
-            // 1. 記帳明細
-            const txDataForExcel = transactions.map(t => ({
+            // 1. 記帳明細分頁
+            const txDataForExcel = transactions.length > 0 ? transactions.map(t => ({
                 日期: t.date,
                 帳本: t.account,
                 項目: t.item,
                 備註: t.note || '',
                 收支類型: t.type,
                 金額: Number(t.amount)
-            }));
+            })) : [{ 日期: '', 帳本: '', 項目: '', 備註: '', 收支類型: '', 金額: 0 }];
             const wsTx = XLSX.utils.json_to_sheet(txDataForExcel);
             XLSX.utils.book_append_sheet(wb, wsTx, "記帳明細");
 
-            // 2. 信用卡代墊
-            const advDataForExcel = advances.map(a => ({
+            // 2. 信用卡代墊分頁
+            const advDataForExcel = advances.length > 0 ? advances.map(a => ({
                 日期: a.date,
                 歸屬月份: a.month,
                 卡別: a.card,
                 項目: a.item,
                 金額: Number(a.amount)
-            }));
+            })) : [{ 日期: '', 歸屬月份: '', 卡別: '', 項目: '', 金額: 0 }];
             const wsAdv = XLSX.utils.json_to_sheet(advDataForExcel);
             XLSX.utils.book_append_sheet(wb, wsAdv, "信用卡代墊");
 
-            // 3. 收支總覽
+            // 3. 收支總覽分頁
             let monthlyData = {};
             transactions.forEach(t => {
                 if (t.type === '一般收入' || t.type === '一般支出') {
@@ -629,14 +629,18 @@
                 ["月份", "總收入", "總支出", "實存 (結餘)", "實存率", "支出率"]
             ];
 
-            months.forEach(m => {
-                let inc = monthlyData[m].income;
-                let exp = monthlyData[m].expense;
-                let saving = inc - exp;
-                let savingRate = inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%';
-                let expenseRate = inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%';
-                analyticsAOA.push([m, inc, exp, saving, savingRate, expenseRate]);
-            });
+            if (months.length > 0) {
+                months.forEach(m => {
+                    let inc = monthlyData[m].income;
+                    let exp = monthlyData[m].expense;
+                    let saving = inc - exp;
+                    let savingRate = inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%';
+                    let expenseRate = inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%';
+                    analyticsAOA.push([m, inc, exp, saving, savingRate, expenseRate]);
+                });
+            } else {
+                analyticsAOA.push(["無收支紀錄", 0, 0, 0, "0.0%", "0.0%"]);
+            }
 
             const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsAOA);
             XLSX.utils.book_append_sheet(wb, wsAnalytics, "收支總覽");
