@@ -569,6 +569,7 @@
         function exportToExcel() {
             const wb = XLSX.utils.book_new();
 
+            // 1. 記帳明細
             const txDataForExcel = transactions.map(t => ({
                 日期: t.date,
                 帳本: t.account,
@@ -579,6 +580,7 @@
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txDataForExcel), "記帳明細");
 
+            // 2. 信用卡代墊
             const advDataForExcel = advances.map(a => ({
                 日期: a.date,
                 歸屬月份: a.month,
@@ -588,8 +590,63 @@
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(advDataForExcel), "信用卡代墊");
 
+            // 3. 收支總覽與分析
+            let monthlyData = {};
+            transactions.forEach(t => {
+                if (t.type === '一般收入' || t.type === '一般支出') {
+                    let monthKey = t.date ? t.date.substring(0, 7) : '';
+                    if (monthKey) {
+                        if (!monthlyData[monthKey]) monthlyData[monthKey] = { income: 0, expense: 0 };
+                        if (t.type === '一般收入') monthlyData[monthKey].income += Number(t.amount);
+                        else monthlyData[monthKey].expense += Number(t.amount);
+                    }
+                }
+            });
+
+            let months = Object.keys(monthlyData).sort();
+            let totalIncAll = 0, totalExpAll = 0, totalSavAll = 0, monthCount = months.length;
+
+            let avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
+            let avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
+
+            // 先計算總和以便算出年比率
+            months.forEach(m => {
+                totalIncAll += monthlyData[m].income;
+                totalExpAll += monthlyData[m].expense;
+                totalSavAll += (monthlyData[m].income - monthlyData[m].expense);
+            });
+            avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
+            avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
+
+            let annualExpRate = totalIncAll > 0 ? ((totalExpAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
+            let annualSavRate = totalIncAll > 0 ? ((totalSavAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
+
+            // 建立收支總覽的表格格式 (Array of Arrays)
+            let analyticsAOA = [
+                ["【年度財務指標摘要】", ""],
+                ["月均支出", avgExp],
+                ["月均實存", avgSav],
+                ["年支出率", annualExpRate],
+                ["年實存率", annualSavRate],
+                [],
+                ["【每月收支與實存一覽】", "", "", "", "", ""],
+                ["月份", "總收入", "總支出", "實存 (結餘)", "實存率", "支出率"]
+            ];
+
+            months.forEach(m => {
+                let inc = monthlyData[m].income;
+                let exp = monthlyData[m].expense;
+                let saving = inc - exp;
+                let savingRate = inc > 0 ? ((saving / inc) * 100).toFixed(1) + '%' : '0.0%';
+                let expenseRate = inc > 0 ? ((exp / inc) * 100).toFixed(1) + '%' : '0.0%';
+                analyticsAOA.push([m, inc, exp, saving, savingRate, expenseRate]);
+            });
+
+            const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsAOA);
+            XLSX.utils.book_append_sheet(wb, wsAnalytics, "收支總覽");
+
             XLSX.writeFile(wb, `智慧多帳本記帳-${currentYear}.xlsx`);
-        }
+         }
 
         function archiveYear() {
             let newYear = prompt('請輸入要建立或切換的新年度（例如：116年）：', '116年');
