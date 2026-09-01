@@ -577,7 +577,8 @@
                 收支類型: t.type,
                 金額: Number(t.amount)
             }));
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txDataForExcel), "記帳明細");
+            const wsTx = XLSX.utils.json_to_sheet(txDataForExcel);
+            XLSX.utils.book_append_sheet(wb, wsTx, "記帳明細");
 
             // 2. 信用卡代墊
             const advDataForExcel = advances.map(a => ({
@@ -587,9 +588,10 @@
                 項目: a.item,
                 金額: Number(a.amount)
             }));
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(advDataForExcel), "信用卡代墊");
+            const wsAdv = XLSX.utils.json_to_sheet(advDataForExcel);
+            XLSX.utils.book_append_sheet(wb, wsAdv, "信用卡代墊");
 
-            // 3. 收支總覽與分析
+            // 3. 收支總覽
             let monthlyData = {};
             transactions.forEach(t => {
                 if (t.type === '一般收入' || t.type === '一般支出') {
@@ -605,7 +607,6 @@
             let months = Object.keys(monthlyData).sort();
             let totalIncAll = 0, totalExpAll = 0, totalSavAll = 0, monthCount = months.length;
 
-            // **修正處：先計算總和，再算月均與年比率**
             months.forEach(m => {
                 totalIncAll += monthlyData[m].income;
                 totalExpAll += monthlyData[m].expense;
@@ -614,11 +615,9 @@
 
             let avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
             let avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
-
             let annualExpRate = totalIncAll > 0 ? ((totalExpAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
             let annualSavRate = totalIncAll > 0 ? ((totalSavAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
 
-            // 建立收支總覽的表格格式 (Array of Arrays)
             let analyticsAOA = [
                 ["【年度財務指標摘要】", ""],
                 ["月均支出", avgExp],
