@@ -304,7 +304,6 @@
                 let res = await fetch(`${API_URL}?action=getData&year=${currentYear}`);
                 let data = await res.json();
                 
-                // 套用去重機制，避免雲端或快取帶入重複項
                 transactions = removeDuplicates(data.transactions || []);
                 advances = removeDuplicates(data.advances || []);
                 paymentStatus = data.paymentStatus || {};
@@ -342,7 +341,7 @@
             }
         }
 
-        // 記帳表單送出防呆與事件綁定（加入防止連點與唯一 ID 產生機制）
+        // 記帳表單送出防呆與事件綁定
         let isSubmitting = false;
         document.getElementById('txForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -606,17 +605,15 @@
             let months = Object.keys(monthlyData).sort();
             let totalIncAll = 0, totalExpAll = 0, totalSavAll = 0, monthCount = months.length;
 
-            let avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
-            let avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
-
-            // 先計算總和以便算出年比率
+            // **修正處：先計算總和，再算月均與年比率**
             months.forEach(m => {
                 totalIncAll += monthlyData[m].income;
                 totalExpAll += monthlyData[m].expense;
                 totalSavAll += (monthlyData[m].income - monthlyData[m].expense);
             });
-            avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
-            avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
+
+            let avgExp = monthCount > 0 ? Math.round(totalExpAll / monthCount) : 0;
+            let avgSav = monthCount > 0 ? Math.round(totalSavAll / monthCount) : 0;
 
             let annualExpRate = totalIncAll > 0 ? ((totalExpAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
             let annualSavRate = totalIncAll > 0 ? ((totalSavAll / totalIncAll) * 100).toFixed(1) + '%' : '0.0%';
@@ -646,7 +643,7 @@
             XLSX.utils.book_append_sheet(wb, wsAnalytics, "收支總覽");
 
             XLSX.writeFile(wb, `智慧多帳本記帳-${currentYear}.xlsx`);
-         }
+        }
 
         function archiveYear() {
             let newYear = prompt('請輸入要建立或切換的新年度（例如：116年）：', '116年');
